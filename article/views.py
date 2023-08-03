@@ -1,3 +1,4 @@
+from django.db.models import Sum
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -19,8 +20,18 @@ class CategoryView(APIView):
             return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'msg': 'ok'}, status=status.HTTP_200_OK)
 
-    def put(self,request):
-        pass
+    def delete(self, request):
+        cid = request.data.get('cid')
+        if not cid:
+            return Response({'msg': '未获取到类别编号'}, status=status.HTTP_400_BAD_REQUEST)
+        article_count = Article.objects.filter(source_id=int(cid)).count()
+        if article_count != 0:
+            return Response({'msg': '该类别下还有文章'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            Category.objects.filter(id=int(cid)).delete()
+        except Exception as e:
+            return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'msg': 'ok'}, status=status.HTTP_200_OK)
 
 
 class ListCountView(APIView):
@@ -97,3 +108,30 @@ class ListViews(APIView):
         else:
             article_ls = Article.objects.filter(source_id=int(category))[int(page_start):int(page_end) + 1]
         return Response(ArticleSerializer(article_ls, many=True).data, status=status.HTTP_200_OK)
+
+
+class NightingaleChartView(APIView):
+    def get(self, request):
+        chart_type = request.GET.get('chart_type')
+        if chart_type == 'count':
+            category_id_ls = Category.objects.values_list('id', flat=True)
+            category_name_ls = Category.objects.values_list('name', flat=True)
+            res_data = []
+            for index in range(len(category_id_ls)):
+                article_count = Article.objects.filter(source_id=int(category_id_ls[index])).count()
+                dt = {'name': category_name_ls[index], 'value': article_count}
+                res_data.append(dt)
+            return Response(res_data, status=status.HTTP_200_OK)
+        elif chart_type == 'click':
+            category_id_ls = Category.objects.values_list('id', flat=True)
+            category_name_ls = Category.objects.values_list('name', flat=True)
+            res_data = []
+            for index in range(len(category_id_ls)):
+                click_count = \
+                    Article.objects.filter(source_id=int(category_id_ls[index])).aggregate(
+                        total_click=Sum('click_count'))[
+                        'total_click']
+                dt = {'name': category_name_ls[index], 'value': click_count}
+                res_data.append(dt)
+            return Response(res_data, status=status.HTTP_200_OK)
+        return Response({'msg': '未获取数据类型'}, status=status.HTTP_400_BAD_REQUEST)

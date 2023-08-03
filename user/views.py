@@ -49,6 +49,7 @@ class UserCreateView(APIView):
 
     # @require_login
     def post(self, request):
+        print(request.data)
         username = request.data.get('username')
         password = request.data.get('password')
         level = request.data.get('level') or 1

@@ -6,4 +6,6 @@ urlpatterns = [
     path("list", views.ListView.as_view()),
     path("lists", views.ListViews.as_view()),
     path("count", views.ListCountView.as_view()),
+
+    path("nightingale", views.NightingaleChartView.as_view())
 ]
