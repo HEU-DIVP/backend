@@ -37,10 +37,17 @@ class CategoryView(APIView):
 class ListCountView(APIView):
     def get(self, request):
         category = request.GET.get('category_id', 0)
-        if int(category) == 0:
-            total = Article.objects.count()
+        keyword = request.GET.get('keyword')
+        if not keyword or keyword == '':
+            if int(category) == 0:
+                total = Article.objects.count()
+            else:
+                total = Article.objects.filter(source_id=int(category)).count()
         else:
-            total = Article.objects.filter(source_id=int(category)).count()
+            if int(category) == 0:
+                total = Article.objects.filter(title__icontains=keyword).count()
+            else:
+                total = Article.objects.filter(title__icontains=keyword, source_id=int(category)).count()
         return Response({'total': total}, status=status.HTTP_200_OK)
 
 
@@ -103,10 +110,22 @@ class ListViews(APIView):
         category = request.GET.get('category_id', 0)
         page_start = request.GET.get('page_start', 0)
         page_end = request.GET.get('page_end', 10)
-        if int(category) == 0:
-            article_ls = Article.objects.all()[int(page_start):int(page_end) + 1]
+        keyword = request.GET.get('keyword')
+        if not keyword or keyword == '':
+            if int(category) == 0:
+                article_ls = Article.objects.all()[int(page_start):int(page_end) + 1]
+            else:
+                article_ls = Article.objects.filter(
+                    source_id=int(category)
+                )[int(page_start):int(page_end) + 1]
         else:
-            article_ls = Article.objects.filter(source_id=int(category))[int(page_start):int(page_end) + 1]
+            if int(category) == 0:
+                article_ls = Article.objects.filter(title__icontains=keyword)[int(page_start):int(page_end) + 1]
+            else:
+                article_ls = Article.objects.filter(
+                    title__icontains=keyword,
+                    source_id=int(category)
+                )[int(page_start):int(page_end) + 1]
         return Response(ArticleSerializer(article_ls, many=True).data, status=status.HTTP_200_OK)
 
 
@@ -135,3 +154,33 @@ class NightingaleChartView(APIView):
                 res_data.append(dt)
             return Response(res_data, status=status.HTTP_200_OK)
         return Response({'msg': '未获取数据类型'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LineChartView(APIView):
+    def get(self, request):
+        chart_type = request.GET.get('chart_type')
+        if chart_type == 'year':
+            distinct_years = Article.objects.dates('create_time', 'year', order='DESC')
+            year_list = list(set(str(year.year) for year in distinct_years))
+            year_list.sort(reverse=True)
+            series = []
+            category_id_ls = Category.objects.values_list('id', flat=True)
+            category_name_ls = Category.objects.values_list('name', flat=True)
+            for category_id, category_name in zip(category_id_ls, category_name_ls):
+                count_list = []
+                for year in year_list:
+                    count = Article.objects.filter(create_time__year=year, source_id=int(category_id)).count()
+                    count_list.append(count)
+                series.append({
+                    'name': category_name,
+                    'type': 'line',
+                    'stack': 'Total',
+                    'data': count_list
+                })
+            data = {
+                'year_list': year_list,
+                'category_list': category_name_ls,
+                'series': series
+            }
+            return Response(data, status=status.HTTP_200_OK)
+        return Response({'msg': 'ok'})
