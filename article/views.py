@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from fake_useragent import UserAgent
 from .models import Category, Article
 from .serializers import CategorySerializer, ArticleSerializer
+from config.codeforces import STATUS_COLOR
 
 
 class CategoryView(APIView):
@@ -220,12 +221,17 @@ class CodeforcesStatusView(APIView):
         x_axis_data = []
         column_res = []
         for k, v in verdict_dt.items():
+            try:
+                color_str = STATUS_COLOR.get(k)
+            except Exception as e:
+                print(str(e))
+                color_str = '#a90000'
             x_axis_data.append(k)
             column_res.append({
                 'groupId': k,
                 'value': v,
                 'itemStyle': {
-                    'color': '#a90000'
+                    'color': color_str
                 }
             })
         return Response(
