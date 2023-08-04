@@ -65,7 +65,7 @@ class UserLoginView(APIView):
         try:
             user = User.objects.get(username=username)
             if user.check_password(password):
-                user.delete()
+                user.delete(using=None, keep_parents=False)
         except Exception as e:
             return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'msg': 'ok'}, status=status.HTTP_200_OK)
@@ -84,6 +84,8 @@ class UserCreateView(APIView):
         _level = Level.objects.get(id=level)
         if not username or not password:
             return Response({"msg": "请输入用户名和密码"}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).count():
+            return Response({'msg': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
         User.objects.create_user(
             username=username,
             password=password,

@@ -9,4 +9,5 @@ urlpatterns = [
 
     path("nightingale", views.NightingaleChartView.as_view()),
     path("line", views.LineChartView.as_view()),
+    path("codeforces", views.CodeforcesStatusView.as_view())
 ]

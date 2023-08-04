@@ -1,7 +1,9 @@
+import requests
 from django.db.models import Sum
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from fake_useragent import UserAgent
 from .models import Category, Article
 from .serializers import CategorySerializer, ArticleSerializer
 
@@ -162,25 +164,77 @@ class LineChartView(APIView):
         if chart_type == 'year':
             distinct_years = Article.objects.dates('create_time', 'year', order='DESC')
             year_list = list(set(str(year.year) for year in distinct_years))
-            year_list.sort(reverse=True)
+            year_list.sort(reverse=False)
             series = []
             category_id_ls = Category.objects.values_list('id', flat=True)
             category_name_ls = Category.objects.values_list('name', flat=True)
             for category_id, category_name in zip(category_id_ls, category_name_ls):
                 count_list = []
-                for year in year_list:
+                for year in year_list[-10:]:
                     count = Article.objects.filter(create_time__year=year, source_id=int(category_id)).count()
                     count_list.append(count)
                 series.append({
                     'name': category_name,
                     'type': 'line',
-                    'stack': 'Total',
+                    # 'stack': 'Total',
                     'data': count_list
                 })
             data = {
-                'year_list': year_list,
+                'year_list': year_list[-10:],
                 'category_list': category_name_ls,
                 'series': series
             }
             return Response(data, status=status.HTTP_200_OK)
         return Response({'msg': 'ok'})
+
+
+class CodeforcesStatusView(APIView):
+    def get(self, request):
+        url = 'https://codeforces.com/api/problemset.recentStatus'
+        params = {'count': request.GET.get('count', 50)}
+        res = requests.get(
+            url=url,
+            params=params,
+            headers={'user-agent': UserAgent().random}
+        )
+        try:
+            json_data = res.json()
+        except Exception as e:
+            print(str(e))
+            return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        programming_language_dt = {}
+        verdict_dt = {}
+        for submit in json_data['result']:
+            if submit.get('programmingLanguage') not in programming_language_dt:
+                programming_language_dt[submit.get('programmingLanguage')] = 0
+            programming_language_dt[submit.get('programmingLanguage')] += 1
+            if submit.get('verdict') not in verdict_dt:
+                verdict_dt[submit.get('verdict')] = 0
+            verdict_dt[submit.get('verdict')] += 1
+        pie_list = []
+        for k, v in programming_language_dt.items():
+            pie_list.append({
+                'name': k,
+                'value': v
+            })
+        x_axis_data = []
+        column_res = []
+        for k, v in verdict_dt.items():
+            x_axis_data.append(k)
+            column_res.append({
+                'groupId': k,
+                'value': v,
+                'itemStyle': {
+                    'color': '#a90000'
+                }
+            })
+        return Response(
+            {
+                'msg': 'ok',
+                'data': json_data,
+                'pie_list': pie_list,
+                'x_axis_data': x_axis_data,
+                'column_res': column_res
+            },
+            status=status.HTTP_200_OK
+        )
